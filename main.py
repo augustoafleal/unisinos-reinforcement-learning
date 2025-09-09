@@ -33,7 +33,7 @@ agent = QLearningAgent(
     epsilon_min=0.01,
 )
 
-n_episodes = 500
+n_episodes = 1500
 max_steps_per_episode = 50
 
 for episode in range(n_episodes):
@@ -46,7 +46,7 @@ for episode in range(n_episodes):
         agent.learn(state, action, reward, next_state, terminated)
         state = next_state
         total_reward += reward
-        # env.render()
+        env.render()
 
         if terminated:
             logger.log(episode, step + 1, total_reward, terminated)
