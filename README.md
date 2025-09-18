@@ -78,6 +78,13 @@ The environment can optionally include wind, which adds stochasticity to the age
   - `☠️` – enemy pirate
   - `🌊` – water
 
+- `human_tilemap` – graphical tilemap display using Pygame:
+  - Shows the agent, islands, treasure, and enemies with tile graphics in a Pygame window.
+
+- `rgb_array_tilemap` – offscreen tilemap rendering:
+  - Returns an RGB array of the current game state using tile graphics.
+  - Useful for recording videos or using the environment with machine learning agents.
+
 ## Example Usage
 
 ```python
@@ -87,3 +94,10 @@ env.render()
 
 obs, reward, terminated, truncated, info = env.step(1)
 env.render()
+```
+
+## Credits
+
+Tileset used: [RPG Beach Tileset](https://stealthix.itch.io/rpg-beach-tileset) by Stealthix.
+
+Available for free under CC0 1.0.

@@ -4,6 +4,7 @@ import time
 from QLearning import QLearningAgent
 from Logger import Logger
 from datetime import datetime
+from RenderRecorder import RenderRecorder
 
 register(
     id="PirateIslands-v0",
@@ -19,9 +20,7 @@ env = gym.make(
     # map_name="8x8",
 )
 
-logger = Logger(
-    f"logs/pirateislands_logs_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"
-)
+logger = Logger(f"logs/pirateislands_logs_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv")
 
 agent = QLearningAgent(
     env.observation_space,
@@ -53,4 +52,35 @@ for episode in range(n_episodes):
             break
 
     print(f"Episode {episode+1}: Total Reward = {total_reward}")
-# print(agent.Q)
+
+env = gym.make("PirateIslands-v0", render_mode="rgb_array_tilemap", map_name="4x4")
+recorder = RenderRecorder(fps=4)
+state, _ = env.reset()
+frame = env.render()
+recorder.capture(frame)
+
+for step in range(max_steps_per_episode):
+    action = agent.choose_action(state)
+    next_state, reward, terminated, truncated, _ = env.step(action)
+    agent.learn(state, action, reward, next_state, terminated)
+    state = next_state
+
+    frame = env.render()
+    recorder.capture(frame)
+
+    if terminated:
+        break
+
+recorder.save()
+
+# env_human = gym.make("PirateIslands-v0", render_mode="human_tilemap", map_name="4x4")
+# state, _ = env_human.reset()
+# done = False
+# while not done:
+#    action = agent.choose_action(state)
+#    next_state, reward, terminated, truncated, _ = env_human.step(action)
+#    state = next_state
+#    env_human.render()
+#    if terminated or truncated:
+#        done = True
+#    time.sleep(0.5)
