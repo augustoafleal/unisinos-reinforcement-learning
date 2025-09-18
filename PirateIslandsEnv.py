@@ -21,13 +21,6 @@ class PirateIslandsEnv(gym.Env):
         self.map_description = self.get_map(map_name)
         self.grid_size = len(self.map_description)
 
-        # self.islands = []
-        # for y, row in enumerate(self.map_description):
-        #    for x, cell in enumerate(row):
-        #        if cell == "I":
-        #            self.islands.append((x, y))
-        # self.num_islands = len(self.islands)
-
         self.start = None
         self.islands = []
         self.treasure = None
@@ -97,7 +90,6 @@ class PirateIslandsEnv(gym.Env):
 
         if tuple(self.agent_pos) == self.treasure:
             if all(self.visited.values()):
-                # print(f"Visited values: {self.visited.values()}")
                 reward = 10
                 terminated = True
             else:
@@ -194,24 +186,20 @@ class PirateIslandsEnv(gym.Env):
         tile_size = 32
         zoom = 4
 
-        # Inicialização do pygame e tiles
         if not hasattr(self, "pygame_initialized"):
             pygame.init()
 
             if self.render_mode == "human_tilemap":
-                # janela visível
                 self.screen = pygame.display.set_mode(
                     (self.grid_size * tile_size * zoom, self.grid_size * tile_size * zoom)
                 )
             else:
-                # surface "offscreen" sem abrir janela
                 self.screen = pygame.Surface((self.grid_size * tile_size * zoom, self.grid_size * tile_size * zoom))
 
             self.clock = pygame.time.Clock()
             if self.render_mode == "human_tilemap":
                 self.tileset_image = pygame.image.load("assets/beach_tileset.png").convert_alpha()
             else:
-                # no modo rgb_array_tilemap não há display ativo, então não usa convert_alpha()
                 self.tileset_image = pygame.image.load("assets/beach_tileset.png")
 
             x_start, x_end = 1, 3
@@ -226,7 +214,6 @@ class PirateIslandsEnv(gym.Env):
                     I_base_combined.blit(tile, ((x - x_start) * tile_size, (y - y_start) * tile_size))
             I_base_combined = pygame.transform.scale(I_base_combined, (tile_size, tile_size))
 
-            # Mapear tiles
             self.tiles = {
                 "W": self.tileset_image.subsurface((1 * tile_size, 2 * tile_size, tile_size, tile_size)),
                 "S": self.tileset_image.subsurface((1 * tile_size, 2 * tile_size, tile_size, tile_size)),
@@ -245,16 +232,13 @@ class PirateIslandsEnv(gym.Env):
 
             self.pygame_initialized = True
 
-        # Processar eventos só no modo humano
         if self.render_mode == "human_tilemap":
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
 
-        # Surface "base" do grid
         surface = pygame.Surface((self.grid_size * tile_size, self.grid_size * tile_size), pygame.SRCALPHA)
 
-        # Desenho do grid
         for y in range(self.grid_size):
             for x in range(self.grid_size):
                 surface.blit(self.tiles["W"], (x * tile_size, y * tile_size))
@@ -290,7 +274,6 @@ class PirateIslandsEnv(gym.Env):
                         agent_direction = self.agent_direction_map[self.agent_direction_index]
                         surface.blit(self.tiles[agent_direction], (x * tile_size, y * tile_size))
 
-        # Escalar e desenhar no destino
         self.screen.blit(pygame.transform.scale(surface, self.screen.get_size()), (0, 0))
 
         if self.render_mode == "human_tilemap":
@@ -298,11 +281,8 @@ class PirateIslandsEnv(gym.Env):
             self.clock.tick(self.metadata["render_fps"])
         elif self.render_mode == "rgb_array_tilemap":
             rgb_array = pygame.surfarray.array3d(self.screen)
-            # Transpor e inverter o eixo X para ficar correto
             rgb_array = np.transpose(rgb_array, (1, 0, 2))
-            # rgb_array = np.flip(rgb_array, axis=1)
             return rgb_array
-            # return pygame.surfarray.array3d(self.screen)
 
     def get_map(self, name="4x4"):
         maps = {
