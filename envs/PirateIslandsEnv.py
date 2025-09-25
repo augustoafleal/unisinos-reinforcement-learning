@@ -62,9 +62,18 @@ class PirateIslandsEnv(gym.Env):
         if hasattr(self, "render_mode") and self.render_mode in ["human_tilemap", "rgb_array_tilemap"]:
             self._render_tilemap()
 
-        return self.encode_state(), {}
+        visited_tuple = tuple(int(v) for v in self.visited.values())
+        info = {
+            "islands": self.islands,
+            "enemies": self.enemies,
+            "treasure": self.treasure,
+            "agent_pos": tuple(self.agent_pos),
+            "visited_islands": visited_tuple,
+        }
+        return self.encode_state(), info
 
     def step(self, action):
+        prev_pos = tuple(self.agent_pos)
         if self.is_blowing_in_the_wind and np.random.rand() < self.wind_prob:
             # print(f"Window is blowing!")
             self.agent_pos = list(self._choose_wind_position(action))
@@ -79,12 +88,20 @@ class PirateIslandsEnv(gym.Env):
             reward = -10
             terminated = True
 
+        # for idx, island in enumerate(self.islands):
+        #    if tuple(self.agent_pos) == island:
+        #        if not self.visited[idx]:
+        #            self.visited[idx] = True
+        #            reward = 1
+        #        else:
+        #            reward = -1
+        #            terminated = True
         for idx, island in enumerate(self.islands):
             if tuple(self.agent_pos) == island:
                 if not self.visited[idx]:
                     self.visited[idx] = True
                     reward = 1
-                else:
+                elif tuple(self.agent_pos) != prev_pos:
                     reward = -1
                     terminated = True
 
@@ -96,7 +113,15 @@ class PirateIslandsEnv(gym.Env):
                 reward = -1
                 terminated = True
 
-        return self.encode_state(), reward, terminated, truncated, {}
+        visited_tuple = tuple(int(v) for v in self.visited.values())
+        info = {
+            "islands": self.islands,
+            "enemies": self.enemies,
+            "treasure": self.treasure,
+            "agent_pos": tuple(self.agent_pos),
+            "visited_islands": visited_tuple,
+        }
+        return self.encode_state(), reward, terminated, truncated, info
 
     def _choose_wind_position(self, action):
         possible_shifts = [-1, 1]
@@ -117,6 +142,24 @@ class PirateIslandsEnv(gym.Env):
 
         fallback_pos = self._next_position(action)
         return fallback_pos
+
+    def _next_position(self, action, pos=None):
+        self.agent_direction_index = action
+        if pos is None:
+            x, y = self.agent_pos
+        else:
+            x, y = pos
+
+        if action == 0 and y > 0:
+            return (x, y - 1)
+        elif action == 1 and y < self.grid_size - 1:
+            return (x, y + 1)
+        elif action == 2 and x > 0:
+            return (x - 1, y)
+        elif action == 3 and x < self.grid_size - 1:
+            return (x + 1, y)
+        else:
+            return (x, y)
 
     def render(self):
         if self.render_mode is None:
@@ -163,24 +206,6 @@ class PirateIslandsEnv(gym.Env):
 
         out = "\n".join(" ".join(row) for row in grid)
         print(out + "\n")
-
-    def _next_position(self, action, pos=None):
-        self.agent_direction_index = action
-        if pos is None:
-            x, y = self.agent_pos
-        else:
-            x, y = pos
-
-        if action == 0 and y > 0:
-            return (x, y - 1)
-        elif action == 1 and y < self.grid_size - 1:
-            return (x, y + 1)
-        elif action == 2 and x > 0:
-            return (x - 1, y)
-        elif action == 3 and x < self.grid_size - 1:
-            return (x + 1, y)
-        else:
-            return (x, y)
 
     def _render_tilemap(self):
         tile_size = 32
