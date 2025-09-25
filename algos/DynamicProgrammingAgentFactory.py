@@ -1,5 +1,5 @@
-import ValueIterationAgent
-import PolicyIterationAgent
+from algos.ValueIterationAgent import ValueIterationAgent
+from algos.PolicyIterationAgent import PolicyIterationAgent
 
 
 class DynamicProgrammingAgentFactory:
