@@ -1,86 +1,72 @@
 from gymnasium.envs.registration import register
 import gymnasium as gym
-import time
-from QLearning import QLearningAgent
-from Logger import Logger
 from datetime import datetime
-from RenderRecorder import RenderRecorder
+from util.RenderRecorder import RenderRecorder
+from util.plots import plot_and_save_policy, plot_best_actions_grid
+from algos.DynamicProgrammingAgentFactory import DynamicProgrammingAgentFactory
+
 
 register(
     id="PirateIslands-v0",
-    entry_point="PirateIslandsEnv:PirateIslandsEnv",
+    entry_point="envs.PirateIslandsEnv:PirateIslandsEnv",
 )
 
-env = gym.make(
-    "PirateIslands-v0",
-    render_mode="text_emoji",
-    map_name="4x4",
-    # is_blowing_in_the_wind=True,
-    # wind_prob=0.15,
-    # map_name="8x8",
+env = gym.make("PirateIslands-v0", render_mode="rgb_array_tilemap", map_name="4x4", is_blowing_in_the_wind=False)
+
+grid_size = 4
+
+obs, info = env.reset()
+print("Initial State:", obs)
+print("Info:", info)
+
+
+agent = DynamicProgrammingAgentFactory.create(
+    # agent_type="value_iteration",
+    agent_type="policy_iteration",
+    grid_size=grid_size,
+    islands=info["islands"],
+    goal=info["treasure"],
+    enemies=info["enemies"],
+    gamma=0.9,
+    epsilon=1e-1,
+    stochastic=True,
 )
 
-logger = Logger(f"logs/pirateislands_logs_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv")
+agent.train()
+print("Iterations for convergence:", agent.iteration)
+print("States iterations for convergence:", agent.states_iteration)
 
-agent = QLearningAgent(
-    env.observation_space,
-    env.action_space,
-    learning_rate=0.1,
-    discount_factor=0.99,
-    epsilon=1.0,
-    epsilon_decay=0.99,
-    epsilon_min=0.01,
-)
+plot_and_save_policy(agent)
+plot_best_actions_grid(agent)
 
-n_episodes = 1500
-max_steps_per_episode = 50
-
-for episode in range(n_episodes):
-    state, _ = env.reset()
-    total_reward = 0
-
-    for step in range(max_steps_per_episode):
-        action = agent.choose_action(state)
-        next_state, reward, terminated, truncated, _ = env.step(action)
-        agent.learn(state, action, reward, next_state, terminated)
-        state = next_state
-        total_reward += reward
-        env.render()
-
-        if terminated:
-            logger.log(episode, step + 1, total_reward, terminated)
-            break
-
-    print(f"Episode {episode+1}: Total Reward = {total_reward}")
-
-env = gym.make("PirateIslands-v0", render_mode="rgb_array_tilemap", map_name="4x4")
+obs, info = env.reset()
 recorder = RenderRecorder(fps=4)
-state, _ = env.reset()
-frame = env.render()
-recorder.capture(frame)
 
-for step in range(max_steps_per_episode):
-    action = agent.choose_action(state)
-    next_state, reward, terminated, truncated, _ = env.step(action)
-    agent.learn(state, action, reward, next_state, terminated)
-    state = next_state
+pos_index = info["agent_pos"][1] * grid_size + info["agent_pos"][0]
+visited_tuple = info["visited_islands"]
+state = (pos_index, visited_tuple)
 
+done = False
+steps = 0
+max_steps = 50
+
+while not done and steps < max_steps:
     frame = env.render()
     recorder.capture(frame)
 
-    if terminated:
-        break
+    action = agent.act(state)
 
+    obs, reward, done, truncated, info = env.step(action)
+
+    pos_index = info["agent_pos"][1] * grid_size + info["agent_pos"][0]
+    visited_tuple = info["visited_islands"]
+    state = (pos_index, visited_tuple)
+
+    steps += 1
+
+frame = env.render()
+recorder.capture(frame)
 recorder.save()
+env.close()
 
-# env_human = gym.make("PirateIslands-v0", render_mode="human_tilemap", map_name="4x4")
-# state, _ = env_human.reset()
-# done = False
-# while not done:
-#    action = agent.choose_action(state)
-#    next_state, reward, terminated, truncated, _ = env_human.step(action)
-#    state = next_state
-#    env_human.render()
-#    if terminated or truncated:
-#        done = True
-#    time.sleep(0.5)
+print("Episode finished in", steps, "steps.")

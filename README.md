@@ -10,7 +10,7 @@ The environment can optionally include wind, which adds stochasticity to the age
 | Feature            | Description                                 |
 |-------------------|---------------------------------------------|
 | Action Space       | Discrete(4)                                 |
-| Observation Space  | Discrete(16)                                |
+| Observation Space  | Discrete(`grid_size * grid_size * (num_islands + 1)`), varies with map size and number of islands |
 | Import             | `gymnasium.make("PirateIslands-v0")`       |
 
 ## Environment Description
