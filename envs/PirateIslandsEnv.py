@@ -282,7 +282,7 @@ class PirateIslandsEnv(gym.Env):
                 if (x, y) in self.islands:
                     idx = self.islands.index((x, y))
                     surface.blit(self.tiles["I_base"], (x * tile_size, y * tile_size))
-                    offset_y = 10
+                    offset_y = 5
                     if self.visited[idx]:
                         surface.blit(self.tiles["I_top"], (x * tile_size, y * tile_size - offset_y))
 
@@ -293,11 +293,19 @@ class PirateIslandsEnv(gym.Env):
 
                 if (x, y) == tuple(self.agent_pos):
                     if (x, y) in self.islands:
-                        offset_y = 6
+                        offset_y = 8
                         surface.blit(self.tiles["A_on_I"], (x * tile_size, y * tile_size - offset_y))
                     elif not (x, y) in self.enemies and not (x, y) == tuple(self.treasure):
                         agent_direction = self.agent_direction_map[self.agent_direction_index]
                         surface.blit(self.tiles[agent_direction], (x * tile_size, y * tile_size))
+
+        # grid_color = (128, 128, 128)
+        grid_color = (255, 255, 255)
+        line_width = 1
+        for x in range(0, self.grid_size * tile_size, tile_size):
+            pygame.draw.line(surface, grid_color, (x, 0), (x, self.grid_size * tile_size), line_width)
+        for y in range(0, self.grid_size * tile_size, tile_size):
+            pygame.draw.line(surface, grid_color, (0, y), (self.grid_size * tile_size, y), line_width)
 
         self.screen.blit(pygame.transform.scale(surface, self.screen.get_size()), (0, 0))
 
