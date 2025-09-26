@@ -75,25 +75,30 @@ class DynamicProgrammingAgent(ABC):
         current_x, current_y = self.position_from_index(current_pos_index)
         next_x, next_y = self.position_from_index(next_pos_index)
 
-        reward = -0.1
+        action_reward = -0.1
 
         if (next_x, next_y) in self.enemies:
-            return -10.0
+            action_reward -= 10
+            return action_reward
 
         for idx, (ix, iy) in enumerate(self.islands):
             if (next_x, next_y) == (ix, iy):
                 if current_visited[idx] == 0 and next_visited[idx] == 1:
-                    return 1.0
+                    action_reward += 1
+                    return action_reward
                 elif current_visited[idx] == 1 and (current_x, current_y) != (next_x, next_y):
-                    return -1.0
+                    action_reward -= 1
+                    return action_reward
 
         if (next_x, next_y) == self.goal:
             if all(next_visited):
-                return 10.0
+                action_reward += 10
+                return action_reward
             else:
-                return -1.0
+                action_reward -= 1
+                return action_reward
 
-        return reward
+        return action_reward
 
     def _build_model(self, wind_prob=0.0, blowing=False):
         for state in self.states:
