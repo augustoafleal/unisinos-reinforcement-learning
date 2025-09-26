@@ -12,7 +12,7 @@ class PirateIslandsEnv(gym.Env):
         render_mode: str | None = "text",
         is_blowing_in_the_wind=False,
         wind_prob=0.30,
-        map_name="4x4",
+        map_name="4x4"
     ):
         super().__init__()
         self.render_mode = render_mode
@@ -71,11 +71,11 @@ class PirateIslandsEnv(gym.Env):
             "visited_islands": visited_tuple,
         }
         return self.encode_state(), info
-
+    
     def step(self, action):
         prev_pos = tuple(self.agent_pos)
         if self.is_blowing_in_the_wind and np.random.rand() < self.wind_prob:
-            # print(f"Window is blowing!")
+            # print(f"Wind is blowing!")
             self.agent_pos = list(self._choose_wind_position(action))
         else:
             self.agent_pos = list(self._next_position(action))
@@ -85,7 +85,7 @@ class PirateIslandsEnv(gym.Env):
         truncated = False
 
         if tuple(self.agent_pos) in self.enemies:
-            reward = -10
+            reward -= 10
             terminated = True
 
         # for idx, island in enumerate(self.islands):
@@ -100,17 +100,17 @@ class PirateIslandsEnv(gym.Env):
             if tuple(self.agent_pos) == island:
                 if not self.visited[idx]:
                     self.visited[idx] = True
-                    reward = 1
+                    reward += 1
                 elif tuple(self.agent_pos) != prev_pos:
-                    reward = -1
+                    reward -= 1
                     terminated = True
 
         if tuple(self.agent_pos) == self.treasure:
             if all(self.visited.values()):
-                reward = 10
+                reward += 10
                 terminated = True
             else:
-                reward = -1
+                reward -= 1
                 terminated = True
 
         visited_tuple = tuple(int(v) for v in self.visited.values())
