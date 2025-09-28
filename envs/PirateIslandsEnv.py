@@ -51,19 +51,11 @@ class PirateIslandsEnv(gym.Env):
         self.tileset_path = "assets/beach_tileset.png"
 
         if self.state_encoding == "count":
-            # estados = posições * (num_ilhas + 1)
             self.observation_space = spaces.Discrete(self.grid_size * self.grid_size * (self.num_islands + 1))
         elif self.state_encoding == "bitmask":
-            # estados = posições * (2^num_ilhas)
             self.observation_space = spaces.Discrete(self.grid_size * self.grid_size * (1 << self.num_islands))
         else:
             raise ValueError(f"Unknown state_encoding: {self.state_encoding}")
-
-    # def encode_state(self):
-    #    pos_index = self.agent_pos[1] * self.grid_size + self.agent_pos[0]
-    #    visited_count = sum(self.visited.values())
-    #    self.num_islands = len(self.islands)
-    #    return pos_index * (self.num_islands + 1) + visited_count
 
     def encode_state(self):
         pos_index = self.agent_pos[1] * self.grid_size + self.agent_pos[0]
