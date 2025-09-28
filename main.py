@@ -1,103 +1,120 @@
-from gymnasium.envs.registration import register
 import gymnasium as gym
+from gymnasium.envs.registration import register
 from datetime import datetime
+import numpy as np
+from algos.OffPolicyMCAgent import OffPolicyMCAgent
 from util.RenderRecorder import RenderRecorder
-from util.plots import plot_and_save_policy, plot_best_actions_grid
-from algos.DynamicProgrammingAgentFactory import DynamicProgrammingAgentFactory
-import pandas as pd
-
+from util.Logger import Logger
+from util.plots import plot_learning_curve, plot_mc_agent_policy_grid
 
 register(
     id="PirateIslands-v0",
     entry_point="envs.PirateIslandsEnv:PirateIslandsEnv",
 )
 
-eps = [1e-1, 1e-2, 1e-4, 1e-6]
-iteration = ["value_iteration", "policy_iteration"]
-winds = [True, False]
-maps = [["4x4", 4], ["8x8", 8]]
+test_configs = [
+    {"map": "4x4", "wind": True, "gamma": 0.95},
+    {"map": "4x4", "wind": False, "gamma": 0.95},
+    {"map": "8x8", "wind": True, "gamma": 0.95},
+    {"map": "8x8", "wind": False, "gamma": 0.95},
+]
 
-# Criando o DataFrame vazio
-df = pd.DataFrame(columns=["map", "wind", "iteration", "epsilon", "steps", "reward", "iterations", "states_iteration"])
+epsilon_start = 1.0
+epsilon_final = 0.01
+num_episodes = 60000
+decay_episodes = 40000
+epsilon_decay = (epsilon_final / epsilon_start) ** (1 / decay_episodes)
+max_steps = 100
 
-for m in maps:
-    for wind in winds:
-        for iterat in iteration:
-            for epsilon_test in eps:
-        
-                env = gym.make("PirateIslands-v0", render_mode="rgb_array_tilemap", map_name=m[0], is_blowing_in_the_wind=wind)
-                
-                grid_size = m[1]
-                
-                obs, info = env.reset()
-                #print("Initial State:", obs)
-                #print("Info:", info)
-                
-                
-                agent = DynamicProgrammingAgentFactory.create(
-                    agent_type=iterat,
-                    grid_size=grid_size,
-                    islands=info["islands"],
-                    goal=info["treasure"],
-                    enemies=info["enemies"],
-                    gamma=0.9,
-                    epsilon=epsilon_test,
-                    stochastic=wind,
-                )
-                
-                agent.train()
-                print("Iterations for convergence:", agent.iteration)
-                print("States iterations for convergence:", agent.states_iteration)
-                
-                plot_and_save_policy(agent)
-                plot_best_actions_grid(agent)
-                
-                obs, info = env.reset()
-                recorder = RenderRecorder(fps=4)
-                
-                pos_index = info["agent_pos"][1] * grid_size + info["agent_pos"][0]
-                visited_tuple = info["visited_islands"]
-                state = (pos_index, visited_tuple)
-                
-                done = False
-                steps = 0
-                max_steps = 100
-                total_reward = 0
-                
-                while not done and steps < max_steps:
-                    frame = env.render()
-                    recorder.capture(frame)
-                
-                    action = agent.act(state)
-                
-                    obs, reward, done, truncated, info = env.step(action)
-                    total_reward += reward
-                
-                    pos_index = info["agent_pos"][1] * grid_size + info["agent_pos"][0]
-                    visited_tuple = info["visited_islands"]
-                    state = (pos_index, visited_tuple)
-                
-                    steps += 1
-                
-                frame = env.render()
-                recorder.capture(frame)
-                recorder.save()
-                env.close()
-                
-                print("Episode finished in", steps, "steps. With Reward of", round(total_reward, 2))
-                # Adicionando os dados na tabela
-                
-                nova_linha = pd.DataFrame([{
-                    "map": m[0],
-                    "wind": wind,
-                    "iteration": iterat,
-                    "epsilon": epsilon_test,
-                    "steps": steps,
-                    "reward": round(total_reward, 2),
-                    "iterations": agent.iteration,
-                    "states_iteration": agent.states_iteration
-                }])
-                
-                df = pd.concat([df, nova_linha], ignore_index=True)
 
-df.to_excel("resultados.xlsx", index=False)
+def run_episode(env, agent, epsilon, max_steps=100):
+    states, actions, rewards = [], [], []
+    obs, info = env.reset()
+    s = int(obs)
+    done = False
+    steps = 0
+    while not done and steps < max_steps:
+        if np.random.rand() < epsilon:
+            a = np.random.randint(agent.nA)
+        else:
+            a = agent.greedy_action(s)
+        next_obs, r, terminated, truncated, info = env.step(a)
+        states.append(s)
+        actions.append(a)
+        rewards.append(r)
+        s = int(next_obs)
+        done = terminated or truncated
+        steps += 1
+    return states, actions, rewards
+
+
+for cfg in test_configs:
+    print(f"\n=== Training: map={cfg['map']} wind={cfg['wind']} gamma={cfg['gamma']} ===")
+
+    env = gym.make(
+        "PirateIslands-v0",
+        render_mode=None,
+        map_name=cfg["map"],
+        is_blowing_in_the_wind=cfg["wind"],
+        state_encoding="bitmask",
+    )
+
+    nS = env.observation_space.n
+    nA = env.action_space.n
+    agent = OffPolicyMCAgent(nS, nA)
+
+    logger = Logger()
+    rewards_history = []
+    epsilon = epsilon_start
+
+    for ep in range(1, num_episodes + 1):
+        states, actions, ep_rewards = run_episode(env, agent, epsilon, max_steps=max_steps)
+        agent.update(states, actions, ep_rewards, gamma=cfg["gamma"], epsilon=epsilon)
+
+        total_reward = sum(ep_rewards)
+        rewards_history.append(total_reward)
+
+        logger.log(
+            episode=ep,
+            total_steps=len(ep_rewards),
+            total_reward=total_reward,
+            terminated=(total_reward > 0),
+        )
+
+        if ep < decay_episodes:
+            epsilon *= epsilon_decay
+        else:
+            epsilon = epsilon_final
+
+        if ep % 100 == 0:
+            avg_last_100 = np.mean(rewards_history[-100:])
+            print(f"[Ep {ep}] Avg reward (last 100): {avg_last_100:.3f} | Epsilon: {epsilon:.3f}")
+
+    plot_learning_curve(logger.filename, window_size=25)
+
+    obs, info = env.reset()
+    state = int(obs)
+    done = False
+    steps = 0
+    total_reward = 0
+
+    while not done and steps < max_steps:
+        # frame = env.render()
+        # recorder.capture(frame)
+        action = agent.greedy_action(state)
+        next_obs, reward, terminated, truncated, info = env.step(action)
+        state = int(next_obs)
+        total_reward += reward
+        done = terminated or truncated
+        steps += 1
+
+    frame = env.render()
+    # recorder.capture(frame)
+    # recorder.save()
+
+    print(f"Eval finished in {steps} steps. Reward: {total_reward:.2f}")
+
+    grid_size = int(cfg["map"].split("x")[0])
+    plot_mc_agent_policy_grid(agent, info, grid_size)
+
+    env.close()

@@ -12,7 +12,8 @@ class PirateIslandsEnv(gym.Env):
         render_mode: str | None = "text",
         is_blowing_in_the_wind=False,
         wind_prob=0.30,
-        map_name="4x4"
+        map_name="4x4",
+        state_encoding="count",
     ):
         super().__init__()
         self.render_mode = render_mode
@@ -20,6 +21,7 @@ class PirateIslandsEnv(gym.Env):
         self.wind_prob = wind_prob
         self.map_description = self.get_map(map_name)
         self.grid_size = len(self.map_description)
+        self.state_encoding = state_encoding
 
         self.start = None
         self.islands = []
@@ -48,11 +50,27 @@ class PirateIslandsEnv(gym.Env):
         self.agent_direction_index = 1
         self.tileset_path = "assets/beach_tileset.png"
 
+        if self.state_encoding == "count":
+            self.observation_space = spaces.Discrete(self.grid_size * self.grid_size * (self.num_islands + 1))
+        elif self.state_encoding == "bitmask":
+            self.observation_space = spaces.Discrete(self.grid_size * self.grid_size * (1 << self.num_islands))
+        else:
+            raise ValueError(f"Unknown state_encoding: {self.state_encoding}")
+
     def encode_state(self):
         pos_index = self.agent_pos[1] * self.grid_size + self.agent_pos[0]
-        visited_count = sum(self.visited.values())
-        self.num_islands = len(self.islands)
-        return pos_index * (self.num_islands + 1) + visited_count
+
+        if self.state_encoding == "count":
+            visited_count = sum(self.visited.values())
+            self.num_islands = len(self.islands)
+            return pos_index * (self.num_islands + 1) + visited_count
+
+        elif self.state_encoding == "bitmask":
+            visited_mask = 0
+            for idx, v in enumerate(self.visited.values()):
+                if v:
+                    visited_mask |= 1 << idx
+            return pos_index * (1 << self.num_islands) + visited_mask
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -71,7 +89,7 @@ class PirateIslandsEnv(gym.Env):
             "visited_islands": visited_tuple,
         }
         return self.encode_state(), info
-    
+
     def step(self, action):
         prev_pos = tuple(self.agent_pos)
         if self.is_blowing_in_the_wind and np.random.rand() < self.wind_prob:
