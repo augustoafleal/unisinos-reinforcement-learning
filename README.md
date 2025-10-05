@@ -7,11 +7,13 @@ The environment can optionally include wind, which adds stochasticity to the age
 
 ## Key Information
 
-| Feature            | Description                                 |
-|-------------------|---------------------------------------------|
-| Action Space       | Discrete(4)                                 |
-| Observation Space  | Discrete(`grid_size * grid_size * (num_islands + 1)`), varies with map size and number of islands |
-| Import             | `gymnasium.make("PirateIslands-v0")`       |
+| Feature            | Description                                                                                    |
+|--------------------|------------------------------------------------------------------------------------------------|
+| Action Space       | Discrete(4)                                                                                    |
+| Observation Space  | Discrete(grid_size * grid_size * (num_islands + 1)) for count-based encoding,                  |
+|                    | Discrete(grid_size * grid_size * (1 << num_islands)) for bitmask-based encoding.               |
+| Import             | `gymnasium.make("PirateIslands-v0")`                                                           |
+
 
 ## Environment Description
 
@@ -31,11 +33,26 @@ The environment can optionally include wind, which adds stochasticity to the age
 
 ## Observation Space
 
-- Type: `Discrete(grid_size * grid_size * (num_islands + 1))`  
-- Encodes the agent's position and number of clue islands visited:
-  - `pos_index = y * grid_size + x`
-  - `visited_count = number of islands visited` (0 até num_islands)
-  - Encoded state: `state = pos_index * (num_islands + 1) + visited_count`
+The observation encodes the agent's position and which clue islands have been visited. Two state encoding modes are supported:
+
+### Count-based (state_encoding="count")  
+- Type: Discrete(grid_size * grid_size * (num_islands + 1))  
+- Encodes: agent position + number of visited islands  
+- Formula:  
+  pos_index = y * grid_size + x
+  visited_count = number of islands visited (0 to num_islands)
+  state = pos_index * (num_islands + 1) + visited_count
+
+### Bitmask-based (state_encoding="bitmask")  
+- Type: Discrete(grid_size * grid_size * (1 << num_islands))  
+- Encodes: agent position + exact set of visited islands  
+- Formula:  
+  pos_index = y * grid_size + x
+  visited_mask = binary mask of visited islands (1 = visited, 0 = not visited)
+  state = pos_index * (1 << num_islands) + visited_mask
+
+Note:
+The bitmask encoding allows the agent to distinguish exactly which islands were visited, while the count-based encoding only tracks the total number of islands visited.
 
 ## Action Space
 
@@ -95,6 +112,17 @@ env.render()
 obs, reward, terminated, truncated, info = env.step(1)
 env.render()
 ```
+
+## Demonstration
+
+Here are examples of the PirateIslandsEnv in action:
+
+**4x4 Map:**
+![Pirate Islands 4x4](assets/pirateislands_4x4.gif)
+
+**8x8 Map:**
+![Pirate Islands 8x8](assets/pirateislands_8x8.gif)
+
 
 ## Credits
 
