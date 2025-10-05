@@ -117,11 +117,11 @@ env.render()
 
 Here are examples of the PirateIslandsEnv in action:
 
-**4x4 Map:**
-![Pirate Islands 4x4](assets/pirateislands_4x4.gif)
+### **4x4 Map:**
+![Pirate Islands 4x4](gifs/pirateislands_4x4.gif)
 
-**8x8 Map:**
-![Pirate Islands 8x8](assets/pirateislands_8x8.gif)
+### **8x8 Map:**
+![Pirate Islands 8x8](gifs/pirateislands_8x8.gif)
 
 
 ## Credits
