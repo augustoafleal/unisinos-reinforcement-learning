@@ -6,7 +6,7 @@ from datetime import datetime
 from util.RenderRecorder import RenderRecorder
 from util.Logger import Logger
 from util.plots import plot_learning_curve
-from algos.OffPolicyMCAgent import OffPolicyMCAgent  # seu agente
+from algos.OffPolicyMCAgent import OffPolicyMCAgent
 
 
 def run_episode(env, agent, epsilon=0.1, max_steps=100):
