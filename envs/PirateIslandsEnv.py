@@ -14,15 +14,43 @@ class PirateIslandsEnv(gym.Env):
         wind_prob=0.30,
         map_name="4x4",
         state_encoding="count",
+        randomize_each_reset=False,
+        seed=None,
     ):
         super().__init__()
         self.render_mode = render_mode
         self.is_blowing_in_the_wind = is_blowing_in_the_wind
         self.wind_prob = wind_prob
+        self.state_encoding = state_encoding
+        self.map_name = map_name
+        self.randomize_each_reset = randomize_each_reset
+
+        self.np_random = np.random.default_rng(seed)
+
         self.map_description = self.get_map(map_name)
         self.grid_size = len(self.map_description)
-        self.state_encoding = state_encoding
 
+        self._initialize_positions_from_map()
+
+        self.observation_space = spaces.Discrete(self.grid_size * self.grid_size * (self.num_islands + 1))
+        self.action_space = spaces.Discrete(4)
+
+        self.agent_pos = None
+        self.visited = None
+        self.agent_direction_map = {0: "A_up", 1: "A_down", 2: "A_left", 3: "A_right"}
+        self.agent_direction_index = 1
+        self.tileset_path = "assets/beach_tileset.png"
+
+        if self.state_encoding == "count":
+            self.observation_space = spaces.Discrete(self.grid_size * self.grid_size * (self.num_islands + 1))
+        elif self.state_encoding == "bitmask":
+            self.observation_space = spaces.Discrete(self.grid_size * self.grid_size * (1 << self.num_islands))
+        else:
+            raise ValueError(f"Unknown state_encoding: {self.state_encoding}")
+
+        self.avoid_positions = []
+
+    def _initialize_positions_from_map(self):
         self.start = None
         self.islands = []
         self.treasure = None
@@ -41,22 +69,6 @@ class PirateIslandsEnv(gym.Env):
 
         self.num_islands = len(self.islands)
 
-        self.observation_space = spaces.Discrete(self.grid_size * self.grid_size * (self.num_islands + 1))
-        self.action_space = spaces.Discrete(4)
-
-        self.agent_pos = None
-        self.visited = None
-        self.agent_direction_map = {0: "A_up", 1: "A_down", 2: "A_left", 3: "A_right"}
-        self.agent_direction_index = 1
-        self.tileset_path = "assets/beach_tileset.png"
-
-        if self.state_encoding == "count":
-            self.observation_space = spaces.Discrete(self.grid_size * self.grid_size * (self.num_islands + 1))
-        elif self.state_encoding == "bitmask":
-            self.observation_space = spaces.Discrete(self.grid_size * self.grid_size * (1 << self.num_islands))
-        else:
-            raise ValueError(f"Unknown state_encoding: {self.state_encoding}")
-
     def encode_state(self):
         pos_index = self.agent_pos[1] * self.grid_size + self.agent_pos[0]
 
@@ -74,6 +86,11 @@ class PirateIslandsEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
+
+        if self.randomize_each_reset and self.map_name.startswith("random_"):
+            self.map_description = self.get_map(self.map_name)
+            self._initialize_positions_from_map()
+
         self.agent_pos = list(self.start)
         self.visited = {i: False for i in range(len(self.islands))}
 
@@ -106,14 +123,6 @@ class PirateIslandsEnv(gym.Env):
             reward -= 10
             terminated = True
 
-        # for idx, island in enumerate(self.islands):
-        #    if tuple(self.agent_pos) == island:
-        #        if not self.visited[idx]:
-        #            self.visited[idx] = True
-        #            reward = 1
-        #        else:
-        #            reward = -1
-        #            terminated = True
         for idx, island in enumerate(self.islands):
             if tuple(self.agent_pos) == island:
                 if not self.visited[idx]:
@@ -227,7 +236,7 @@ class PirateIslandsEnv(gym.Env):
 
     def _render_tilemap(self):
         tile_size = 32
-        zoom = 4
+        zoom = 2 if self.grid_size <= 10 else 1
 
         if not hasattr(self, "pygame_initialized"):
             pygame.init()
@@ -317,7 +326,6 @@ class PirateIslandsEnv(gym.Env):
                         agent_direction = self.agent_direction_map[self.agent_direction_index]
                         surface.blit(self.tiles[agent_direction], (x * tile_size, y * tile_size))
 
-        # grid_color = (128, 128, 128)
         grid_color = (255, 255, 255)
         line_width = 1
         for x in range(0, self.grid_size * tile_size, tile_size):
@@ -335,8 +343,25 @@ class PirateIslandsEnv(gym.Env):
             rgb_array = np.transpose(rgb_array, (1, 0, 2))
             return rgb_array
 
+    def _place_entity(self, grid, entity):
+        size = len(grid)
+        candidates = [(x, y) for y in range(size) for x in range(size) if grid[y, x] == "W"]
+        self.np_random.shuffle(candidates)
+
+        for x, y in candidates:
+            blocked = False
+            for ax, ay in self._avoid_position:
+                if abs(ax - x) + abs(ay - y) == 1:
+                    blocked = True
+                    break
+            if not blocked:
+                grid[y, x] = entity
+                self._avoid_position.append((x, y))
+                return True
+        return False
+
     def get_map(self, name="4x4"):
-        maps = {
+        fixed_maps = {
             "4x4": ["SIWE", "WWWI", "WEWW", "IWWT"],
             "8x8": [
                 "SWWWWWWI",
@@ -349,4 +374,34 @@ class PirateIslandsEnv(gym.Env):
                 "WEWWWWWT",
             ],
         }
-        return maps[name]
+
+        if name in fixed_maps:
+            return fixed_maps[name]
+
+        if name.startswith("random_"):
+            try:
+                size_str = name.split("_")[1]
+                size = int(size_str.split("x")[0])
+            except Exception:
+                raise ValueError(f"Invalid random map format: {name}. Expected 'random_10x10'.")
+
+            island_density = 0.10
+            enemy_density = 0.05
+            num_cells = size * size
+            num_islands = max(1, int(num_cells * island_density))
+            num_enemies = max(1, int(num_cells * enemy_density))
+
+            grid = np.full((size, size), "W", dtype=str)
+            grid[0, 0] = "S"
+            grid[size - 1, size - 1] = "T"
+            self._avoid_position = [(0, 0), (size - 1, size - 1)]
+
+            for _ in range(num_islands):
+                self._place_entity(grid, "I")
+
+            for _ in range(num_enemies):
+                self._place_entity(grid, "E")
+
+            return ["".join(row) for row in grid]
+
+        raise ValueError(f"Unknown map name: {name}")
