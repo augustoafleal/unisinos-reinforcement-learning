@@ -45,6 +45,22 @@ class PirateIslandsEnv(gym.Env):
             self.observation_space = spaces.Discrete(self.grid_size * self.grid_size * (self.num_islands + 1))
         elif self.state_encoding == "bitmask":
             self.observation_space = spaces.Discrete(self.grid_size * self.grid_size * (1 << self.num_islands))
+        elif self.state_encoding == "positions":
+            obs_size = 2 + (self.num_islands * 2) + self.num_islands + (self.num_enemies * 2)
+            self.observation_space = spaces.Box(low=0, high=1, shape=(obs_size,), dtype=np.float32)
+        elif self.state_encoding == "enhanced_positions":
+            base_size = 2 + (self.num_islands * 2) + self.num_islands + (self.num_enemies * 2)
+            extra_features = self.num_islands + 1 + self.num_islands + 1
+            obs_size = base_size + extra_features
+            self.observation_space = spaces.Box(low=0, high=1, shape=(obs_size,), dtype=np.float32)
+        elif self.state_encoding == "cnn":
+            obs_shape = (
+                1,
+                self.grid_size,
+                self.grid_size,
+            )  # 5 canais: agente, ilhas, ilhas visitadas, inimigos, tesouro
+            self.observation_space = spaces.Box(low=0.0, high=1.0, shape=obs_shape, dtype=np.float32)
+
         else:
             raise ValueError(f"Unknown state_encoding: {self.state_encoding}")
 
@@ -68,6 +84,7 @@ class PirateIslandsEnv(gym.Env):
                     self.enemies.append((x, y))
 
         self.num_islands = len(self.islands)
+        self.num_enemies = len(self.enemies)
 
     def encode_state(self):
         pos_index = self.agent_pos[1] * self.grid_size + self.agent_pos[0]
@@ -83,6 +100,152 @@ class PirateIslandsEnv(gym.Env):
                 if v:
                     visited_mask |= 1 << idx
             return pos_index * (1 << self.num_islands) + visited_mask
+
+        elif self.state_encoding == "positions":
+
+            norm_agent_x = self.agent_pos[0] / (self.grid_size - 1)
+            norm_agent_y = self.agent_pos[1] / (self.grid_size - 1)
+
+            island_positions = np.zeros((self.num_islands, 2), dtype=np.float32)
+            visited_flags = np.zeros(self.num_islands, dtype=np.float32)
+
+            for idx, island in enumerate(self.islands):
+                ix, iy = island
+                island_positions[idx, 0] = ix / (self.grid_size - 1)
+                island_positions[idx, 1] = iy / (self.grid_size - 1)
+                visited_flags[idx] = float(self.visited[idx])
+
+            enemy_positions = np.zeros((self.num_enemies, 2), dtype=np.float32)
+            for idx, enemy in enumerate(self.enemies):
+                ex, ey = enemy
+                enemy_positions[idx, 0] = ex / (self.grid_size - 1)
+                enemy_positions[idx, 1] = ey / (self.grid_size - 1)
+
+            state_vec = np.concatenate(
+                (
+                    np.array([norm_agent_x, norm_agent_y], dtype=np.float32),
+                    island_positions.flatten(),
+                    visited_flags,
+                    enemy_positions.flatten(),
+                )
+            )
+
+            return state_vec
+
+        elif self.state_encoding == "enhanced_positions":
+            # --- Base: estado positions normalizado ---
+            norm_agent_x = self.agent_pos[0] / (self.grid_size - 1)
+            norm_agent_y = self.agent_pos[1] / (self.grid_size - 1)
+
+            island_positions = np.zeros((self.num_islands, 2), dtype=np.float32)
+            visited_flags = np.zeros(self.num_islands, dtype=np.float32)
+
+            for idx, island in enumerate(self.islands):
+                ix, iy = island
+                island_positions[idx, 0] = ix / (self.grid_size - 1)
+                island_positions[idx, 1] = iy / (self.grid_size - 1)
+                visited_flags[idx] = float(self.visited[idx])
+
+            enemy_positions = np.zeros((self.num_enemies, 2), dtype=np.float32)
+            for idx, enemy in enumerate(self.enemies):
+                ex, ey = enemy
+                enemy_positions[idx, 0] = ex / (self.grid_size - 1)
+                enemy_positions[idx, 1] = ey / (self.grid_size - 1)
+
+            base_vec = np.concatenate(
+                (
+                    np.array([norm_agent_x, norm_agent_y], dtype=np.float32),
+                    island_positions.flatten(),
+                    visited_flags,
+                    enemy_positions.flatten(),
+                )
+            )
+
+            # --- Features adicionais ---
+            agent_pos = np.array([norm_agent_x, norm_agent_y], dtype=np.float32)
+            treasure_pos = np.array(
+                [self.treasure[0] / (self.grid_size - 1), self.treasure[1] / (self.grid_size - 1)], dtype=np.float32
+            )
+
+            # Distâncias
+            dist_agent_islands = np.linalg.norm(island_positions - agent_pos, axis=1)
+            dist_agent_treasure = np.linalg.norm(agent_pos - treasure_pos)
+            dist_island_treasure = np.linalg.norm(island_positions - treasure_pos, axis=1)
+
+            # Normalização
+            norm_factor = np.sqrt(2)
+            dist_agent_islands /= norm_factor
+            dist_agent_treasure /= norm_factor
+            dist_island_treasure /= norm_factor
+
+            # Progresso
+            visited_ratio = np.sum(visited_flags) / self.num_islands
+
+            enhanced_vec = np.concatenate(
+                [base_vec, dist_agent_islands, [dist_agent_treasure], dist_island_treasure, [visited_ratio]]
+            ).astype(np.float32)
+
+            return enhanced_vec
+
+        elif self.state_encoding == "cnn":
+            return self.encode_state_cnn()
+
+        else:
+            raise ValueError(f"Unknown state_encoding: {self.state_encoding}")
+
+    def encode_goal(self):
+
+        # Caso seja a versão aprimorada, adicionar as features extras
+        if self.state_encoding == "enhanced_positions":
+            agent_pos = goal_agent_pos
+            treasure_pos = goal_agent_pos
+            # Distâncias
+            dist_agent_islands = np.linalg.norm(island_positions - agent_pos, axis=1)
+            dist_agent_treasure = np.linalg.norm(agent_pos - treasure_pos)
+            dist_island_treasure = np.linalg.norm(island_positions - treasure_pos, axis=1)
+
+            # Normalização
+            norm_factor = np.sqrt(2)
+            dist_agent_islands /= norm_factor
+            dist_agent_treasure /= norm_factor
+            dist_island_treasure /= norm_factor
+
+            # Todas as ilhas visitadas → progresso = 1.0
+            visited_ratio = 1.0
+
+            enhanced_vec = np.concatenate(
+                [base_vec, dist_agent_islands, [dist_agent_treasure], dist_island_treasure, [visited_ratio]]
+            ).astype(np.float32)
+
+            return enhanced_vec
+
+        elif self.state_encoding == "cnn":
+            return self.encode_goal_cnn()
+
+        goal_agent_pos = np.array(
+            [self.treasure[0] / (self.grid_size - 1), self.treasure[1] / (self.grid_size - 1)], dtype=np.float32
+        )
+
+        # Flags de ilhas visitadas (todas 1)
+        goal_visited_flags = np.ones(self.num_islands, dtype=np.float32)
+
+        # Posições das ilhas
+        island_positions = np.array(
+            [[ix / (self.grid_size - 1), iy / (self.grid_size - 1)] for ix, iy in self.islands], dtype=np.float32
+        )
+
+        # Posições dos inimigos
+        enemy_positions = np.array(
+            [[ex / (self.grid_size - 1), ey / (self.grid_size - 1)] for ex, ey in self.enemies], dtype=np.float32
+        )
+
+        # Vetor base comum
+        base_vec = np.concatenate(
+            [goal_agent_pos, island_positions.flatten(), goal_visited_flags, enemy_positions.flatten()]
+        )
+
+        # Caso contrário, retorna o vetor padrão
+        return base_vec
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -130,6 +293,7 @@ class PirateIslandsEnv(gym.Env):
                     reward += 1
                 elif tuple(self.agent_pos) != prev_pos:
                     reward -= 1
+                    # reward -= 10
                     terminated = True
 
         if tuple(self.agent_pos) == self.treasure:
@@ -323,6 +487,7 @@ class PirateIslandsEnv(gym.Env):
                         offset_y = 8
                         surface.blit(self.tiles["A_on_I"], (x * tile_size, y * tile_size - offset_y))
                     elif not (x, y) in self.enemies and not (x, y) == tuple(self.treasure):
+                        # print(self.agent_direction_index)
                         agent_direction = self.agent_direction_map[self.agent_direction_index]
                         surface.blit(self.tiles[agent_direction], (x * tile_size, y * tile_size))
 
@@ -385,9 +550,10 @@ class PirateIslandsEnv(gym.Env):
             except Exception:
                 raise ValueError(f"Invalid random map format: {name}. Expected 'random_10x10'.")
 
-            island_density = 0.10
+            island_density = 0.05
             enemy_density = 0.05
             num_cells = size * size
+            # num_islands = 3
             num_islands = max(1, int(num_cells * island_density))
             num_enemies = max(1, int(num_cells * enemy_density))
 
@@ -405,3 +571,103 @@ class PirateIslandsEnv(gym.Env):
             return ["".join(row) for row in grid]
 
         raise ValueError(f"Unknown map name: {name}")
+
+    """
+    def encode_goal_cnn(self):
+
+        C = 5
+        H = W = self.grid_size
+        tensor = np.zeros((C, H, W), dtype=np.float32)
+
+        # agente no tesouro
+        tx, ty = self.treasure
+        tensor[0, ty, tx] = 1.0
+
+        # todas as ilhas visitadas
+        for ix, iy in self.islands:
+            tensor[2, iy, ix] = 1.0
+
+        # inimigos
+        for ex, ey in self.enemies:
+            tensor[3, ey, ex] = 1.0
+
+        # tesouro
+        tensor[4, ty, tx] = 1.0
+
+        return tensor
+
+    def encode_state_cnn(self):
+
+        C = 5
+        H = W = self.grid_size
+        tensor = np.zeros((C, H, W), dtype=np.float32)
+
+        # agente
+        ax, ay = self.agent_pos
+        tensor[0, ay, ax] = 1.0
+
+        # ilhas
+        for idx, (ix, iy) in enumerate(self.islands):
+            if self.visited[idx]:
+                tensor[2, iy, ix] = 1.0
+            else:
+                tensor[1, iy, ix] = 1.0
+
+        # inimigos
+        for ex, ey in self.enemies:
+            tensor[3, ey, ex] = 1.0
+
+        # tesouro
+        tx, ty = self.treasure
+        tensor[4, ty, tx] = 1.0
+
+        return tensor
+
+    """
+
+    def encode_goal_cnn(self):
+        H = W = self.grid_size
+        tensor = np.zeros((1, H, W), dtype=np.float32)
+
+        # todas as ilhas já visitadas no goal
+        for ix, iy in self.islands:
+            tensor[0, iy, ix] = 0.4  # ilhas visitadas
+
+        # inimigos
+        for ex, ey in self.enemies:
+            tensor[0, ey, ex] = 0.6
+
+        # tesouro (meta final)
+        tx, ty = self.treasure
+        tensor[0, ty, tx] = 0.8
+
+        # "agente no tesouro" no goal
+        tensor[0, ty, tx] = 1.0
+
+        return tensor
+
+    def encode_state_cnn(self):
+
+        H = W = self.grid_size
+        tensor = np.zeros((1, H, W), dtype=np.float32)
+
+        # ilhas
+        for idx, (ix, iy) in enumerate(self.islands):
+            if self.visited[idx]:
+                tensor[0, iy, ix] = 0.4  # visitada
+            else:
+                tensor[0, iy, ix] = 0.2  # não visitada
+
+        # inimigos
+        for ex, ey in self.enemies:
+            tensor[0, ey, ex] = 0.6
+
+        # tesouro
+        tx, ty = self.treasure
+        tensor[0, ty, tx] = 0.8
+
+        # agente (sobrepõe o que estiver na célula)
+        ax, ay = self.agent_pos
+        tensor[0, ay, ax] = 1.0
+
+        return tensor

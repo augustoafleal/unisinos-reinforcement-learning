@@ -17,14 +17,11 @@ class Logger:
         self._init_file()
 
     def _init_file(self):
-        if not os.path.exists(self.filename):
-            with open(self.filename, "w", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(
-                    ["episode", "total_steps", "total_reward", "terminated"]
-                )
+        with open(self.filename, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["episode", "total_steps", "total_reward", "terminated", "elapsed_time"])
 
-    def log(self, episode, total_steps, total_reward, terminated):
+    def log(self, episode, total_steps, total_reward, terminated, elapsed_time):
         with open(self.filename, "a", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow([episode, total_steps, total_reward, terminated])
+            writer.writerow([episode, total_steps, total_reward, terminated, elapsed_time])

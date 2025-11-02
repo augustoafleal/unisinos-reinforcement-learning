@@ -2,12 +2,9 @@ import gymnasium as gym
 from gymnasium.envs.registration import register
 from datetime import datetime
 import numpy as np
-from algos.OffPolicyMCAgent import OffPolicyMCAgent
-from util.RenderRecorder import RenderRecorder
-from util.Logger import Logger
-from util.plots import plot_learning_curve, plot_mc_agent_policy_grid
-import time
 import pygame
+import time
+from util.RenderRecorder import RenderRecorder
 
 register(
     id="PirateIslands-v1",
@@ -20,13 +17,27 @@ for map_name in map_sizes:
     env = gym.make(
         "PirateIslands-v1",
         map_name=map_name,
-        render_mode="human_tilemap",
+        render_mode="rgb_array_tilemap",
         randomize_each_reset=True,
+        state_encoding="positions",
         seed=None,
     )
 
-    state, info = env.reset()
-    env.render()
+    recorder = RenderRecorder(f"video/{map_name}.mp4", fps=4)
 
-    time.sleep(2)
+    obs, info = env.reset()
+    done = False
+
+    while not done:
+        # ação aleatória só para gerar o vídeo
+        action = env.action_space.sample()
+        obs, reward, terminated, truncated, info = env.step(action)
+
+        frame = env.render()
+        recorder.capture(frame)
+
+        done = terminated or truncated
+        time.sleep(0.1)  # desacelera a execução para visualização
+
+    recorder.save()
     pygame.quit()
