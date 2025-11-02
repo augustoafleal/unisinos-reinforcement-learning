@@ -58,7 +58,7 @@ class PirateIslandsEnv(gym.Env):
                 1,
                 self.grid_size,
                 self.grid_size,
-            )  # 5 canais: agente, ilhas, ilhas visitadas, inimigos, tesouro
+            )
             self.observation_space = spaces.Box(low=0.0, high=1.0, shape=obs_shape, dtype=np.float32)
 
         else:
@@ -133,7 +133,7 @@ class PirateIslandsEnv(gym.Env):
             return state_vec
 
         elif self.state_encoding == "enhanced_positions":
-            # --- Base: estado positions normalizado ---
+
             norm_agent_x = self.agent_pos[0] / (self.grid_size - 1)
             norm_agent_y = self.agent_pos[1] / (self.grid_size - 1)
 
@@ -161,24 +161,20 @@ class PirateIslandsEnv(gym.Env):
                 )
             )
 
-            # --- Features adicionais ---
             agent_pos = np.array([norm_agent_x, norm_agent_y], dtype=np.float32)
             treasure_pos = np.array(
                 [self.treasure[0] / (self.grid_size - 1), self.treasure[1] / (self.grid_size - 1)], dtype=np.float32
             )
 
-            # Distâncias
             dist_agent_islands = np.linalg.norm(island_positions - agent_pos, axis=1)
             dist_agent_treasure = np.linalg.norm(agent_pos - treasure_pos)
             dist_island_treasure = np.linalg.norm(island_positions - treasure_pos, axis=1)
 
-            # Normalização
             norm_factor = np.sqrt(2)
             dist_agent_islands /= norm_factor
             dist_agent_treasure /= norm_factor
             dist_island_treasure /= norm_factor
 
-            # Progresso
             visited_ratio = np.sum(visited_flags) / self.num_islands
 
             enhanced_vec = np.concatenate(
@@ -194,23 +190,19 @@ class PirateIslandsEnv(gym.Env):
             raise ValueError(f"Unknown state_encoding: {self.state_encoding}")
 
     def encode_goal(self):
-
-        # Caso seja a versão aprimorada, adicionar as features extras
         if self.state_encoding == "enhanced_positions":
             agent_pos = goal_agent_pos
             treasure_pos = goal_agent_pos
-            # Distâncias
+
             dist_agent_islands = np.linalg.norm(island_positions - agent_pos, axis=1)
             dist_agent_treasure = np.linalg.norm(agent_pos - treasure_pos)
             dist_island_treasure = np.linalg.norm(island_positions - treasure_pos, axis=1)
 
-            # Normalização
             norm_factor = np.sqrt(2)
             dist_agent_islands /= norm_factor
             dist_agent_treasure /= norm_factor
             dist_island_treasure /= norm_factor
 
-            # Todas as ilhas visitadas → progresso = 1.0
             visited_ratio = 1.0
 
             enhanced_vec = np.concatenate(
@@ -226,25 +218,20 @@ class PirateIslandsEnv(gym.Env):
             [self.treasure[0] / (self.grid_size - 1), self.treasure[1] / (self.grid_size - 1)], dtype=np.float32
         )
 
-        # Flags de ilhas visitadas (todas 1)
         goal_visited_flags = np.ones(self.num_islands, dtype=np.float32)
 
-        # Posições das ilhas
         island_positions = np.array(
             [[ix / (self.grid_size - 1), iy / (self.grid_size - 1)] for ix, iy in self.islands], dtype=np.float32
         )
 
-        # Posições dos inimigos
         enemy_positions = np.array(
             [[ex / (self.grid_size - 1), ey / (self.grid_size - 1)] for ex, ey in self.enemies], dtype=np.float32
         )
 
-        # Vetor base comum
         base_vec = np.concatenate(
             [goal_agent_pos, island_positions.flatten(), goal_visited_flags, enemy_positions.flatten()]
         )
 
-        # Caso contrário, retorna o vetor padrão
         return base_vec
 
     def reset(self, seed=None, options=None):
@@ -629,19 +616,15 @@ class PirateIslandsEnv(gym.Env):
         H = W = self.grid_size
         tensor = np.zeros((1, H, W), dtype=np.float32)
 
-        # todas as ilhas já visitadas no goal
         for ix, iy in self.islands:
-            tensor[0, iy, ix] = 0.4  # ilhas visitadas
+            tensor[0, iy, ix] = 0.4
 
-        # inimigos
         for ex, ey in self.enemies:
             tensor[0, ey, ex] = 0.6
 
-        # tesouro (meta final)
         tx, ty = self.treasure
         tensor[0, ty, tx] = 0.8
 
-        # "agente no tesouro" no goal
         tensor[0, ty, tx] = 1.0
 
         return tensor
@@ -654,9 +637,9 @@ class PirateIslandsEnv(gym.Env):
         # ilhas
         for idx, (ix, iy) in enumerate(self.islands):
             if self.visited[idx]:
-                tensor[0, iy, ix] = 0.4  # visitada
+                tensor[0, iy, ix] = 0.4
             else:
-                tensor[0, iy, ix] = 0.2  # não visitada
+                tensor[0, iy, ix] = 0.2
 
         # inimigos
         for ex, ey in self.enemies:
@@ -666,7 +649,6 @@ class PirateIslandsEnv(gym.Env):
         tx, ty = self.treasure
         tensor[0, ty, tx] = 0.8
 
-        # agente (sobrepõe o que estiver na célula)
         ax, ay = self.agent_pos
         tensor[0, ay, ax] = 1.0
 
