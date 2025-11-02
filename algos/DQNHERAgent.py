@@ -35,13 +35,12 @@ class DQNHERAgent:
         self.min_epsilon = min_epsilon
         self.learn_step_counter = 0
 
-        # --- Escolha de arquitetura ---
         if state_encoding == "cnn":
             in_channels, grid_h, grid_w = n_states
             self.q_eval = DQNCNN(in_channels * 2, grid_h, n_actions, learning_rate, checkpoint_dir, name + "_eval")
             self.q_next = DQNCNN(in_channels * 2, grid_h, n_actions, learning_rate, checkpoint_dir, name + "_target")
         else:
-            input_dims = n_states * 2  # concat state + goal
+            input_dims = n_states * 2
             self.q_eval = DQNBase(input_dims, n_actions, learning_rate, checkpoint_dir, name + "_eval")
             self.q_next = copy.deepcopy(self.q_eval)
 
@@ -56,14 +55,12 @@ class DQNHERAgent:
         else:
             self.memory = HindsightExperienceReplayMemory(memory_size, n_states, n_actions)
 
-    # --- Experiências ---
     def store_experience(self, state, action, reward, next_state, done, goal):
         self.memory.add_experience(state, action, reward, next_state, done, goal)
 
-    # --- Pré-processamento de estado ---
     def preprocess_state(self, state, goal=None):
         if self.state_encoding == "cnn":
-            state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.q_eval.device)  # (1,C,H,W)
+            state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.q_eval.device)
             if goal is not None:
                 goal_tensor = torch.tensor(goal, dtype=torch.float32).unsqueeze(0).to(self.q_eval.device)
                 return state_tensor, goal_tensor
@@ -91,20 +88,16 @@ class DQNHERAgent:
         else:
             return np.random.choice(self.n_actions)
 
-    # --- Replay HER ---
     def sample_batch(self):
         return self.memory.get_random_experience(self.batch_size)
 
-    # --- Decaimento epsilon ---
     def decrement_epsilon(self):
         self.epsilon = max(self.min_epsilon, self.epsilon - self.dec_epsilon)
 
-    # --- Atualiza rede target ---
     def replace_target_network(self):
         if self.learn_step_counter % self.replace_target_count == 0:
             self.q_next.load_state_dict(self.q_eval.state_dict())
 
-    # --- Aprendizado ---
     def learn(self):
         if self.memory.counter < self.batch_size:
             return
@@ -150,7 +143,6 @@ class DQNHERAgent:
         self.learn_step_counter += 1
 
 
-# --- Memória HER padrão (MLP) ---
 class HindsightExperienceReplayMemory:
     def __init__(self, memory_size, input_dims, n_actions):
         self.max_mem_size = memory_size
@@ -185,7 +177,6 @@ class HindsightExperienceReplayMemory:
         )
 
 
-# --- Memória HER para CNN ---
 class HindsightExperienceReplayMemoryCNN:
     def __init__(self, memory_size, input_shape, n_actions):
         self.max_mem_size = memory_size

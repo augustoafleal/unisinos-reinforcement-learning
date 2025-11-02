@@ -50,41 +50,18 @@ class DQNCNN(nn.Module):
     ):
         super().__init__()
 
-        # --- Bloco convolucional ---
         self.conv1 = nn.Conv2d(input_channels, 16, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1)  # 12x12 -> 6x6
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1)
 
-        # --- Flatten ---
         conv_output_size = 64 * (grid_size // 2) * (grid_size // 2)
 
-        # --- Cabeça totalmente conectada ---
         self.fc1 = nn.Linear(conv_output_size, 256)
         self.fc2 = nn.Linear(256, n_actions)
 
-        # --- Inicialização robusta (essencial sem batch norm) ---
-        # for layer in [self.conv1, self.conv2, self.conv3, self.fc1]:
-        #    if hasattr(layer, "weight"):
-        #        nn.init.kaiming_uniform_(layer.weight, nonlinearity="relu")
-        #        nn.init.constant_(layer.bias, 0)
-
-        # --- Otimizador e perda ---
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         self.loss_fn = nn.SmoothL1Loss()
-        """
 
-        self.conv1 = nn.Conv2d(input_channels, 16, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-
-        conv_output_size = 32 * grid_size * grid_size
-
-        self.fc1 = nn.Linear(conv_output_size, 64)
-        self.fc2 = nn.Linear(64, n_actions)
-
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
-        self.loss_fn = nn.MSELoss()
-        """
-        # --- Dispositivo e checkpoints ---
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
         self.checkpoint_dir = checkpoint_dir
@@ -99,16 +76,6 @@ class DQNCNN(nn.Module):
         x = x.view(x.size(0), -1)
         x = F.relu(self.fc1(x))
         return self.fc2(x)
-
-    """
-
-    def forward(self, state):
-        x = F.relu(self.conv1(state))
-        x = F.relu(self.conv2(x))
-        x = x.view(x.size(0), -1)
-        x = F.relu(self.fc1(x))
-        return self.fc2(x)
-    """
 
     def save_checkpoint(self):
         torch.save(self.state_dict(), self.checkpoint_file)
