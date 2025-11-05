@@ -44,7 +44,6 @@ class DQNHERAgent:
             self.q_eval = DQNBase(input_dims, n_actions, learning_rate, checkpoint_dir, name + "_eval")
             self.q_next = copy.deepcopy(self.q_eval)
 
-        # Memória HER
         if state_encoding == "cnn":
             # input_dims = n_states  # n_states = (C,H,W) -> memory armazena array C*H*W?
             # self.memory = HindsightExperienceReplayMemoryCNN(
@@ -163,7 +162,7 @@ class HindsightExperienceReplayMemory:
 
         if done:
             self._store_episode_with_her()
-            self.episode_buffer = []  # limpa o buffer do episódio
+            self.episode_buffer = []
 
     def _store_episode_with_her(self):
         episode = self.episode_buffer
