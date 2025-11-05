@@ -144,9 +144,11 @@ class DQNHERAgent:
 
 
 class HindsightExperienceReplayMemory:
-    def __init__(self, memory_size, input_dims, n_actions):
+    def __init__(self, memory_size, input_dims, n_actions, her_k=4):
         self.max_mem_size = memory_size
         self.counter = 0
+        self.her_k = her_k
+
         self.state_memory = np.zeros((memory_size, input_dims), dtype=np.float32)
         self.next_state_memory = np.zeros((memory_size, input_dims), dtype=np.float32)
         self.reward_memory = np.zeros(memory_size, dtype=np.float32)
@@ -154,7 +156,32 @@ class HindsightExperienceReplayMemory:
         self.terminal_memory = np.zeros(memory_size, dtype=bool)
         self.goal_memory = np.zeros((memory_size, input_dims), dtype=np.float32)
 
+        self.episode_buffer = []
+
     def add_experience(self, state, action, reward, next_state, done, goal):
+        self.episode_buffer.append((state, action, reward, next_state, done, goal))
+
+        if done:
+            self._store_episode_with_her()
+            self.episode_buffer = []  # limpa o buffer do episódio
+
+    def _store_episode_with_her(self):
+        episode = self.episode_buffer
+        ep_len = len(episode)
+
+        for t, (state, action, reward, next_state, done, goal) in enumerate(episode):
+            self._store(state, action, reward, next_state, done, goal)
+
+            future_indexes = np.random.choice(np.arange(t, ep_len), size=self.her_k, replace=True)
+            for future_t in future_indexes:
+                _, _, _, future_state, _, _ = episode[future_t]
+
+                new_goal = future_state.copy()
+                new_reward = self.compute_reward(next_state, new_goal)
+
+                self._store(state, action, new_reward, next_state, done, new_goal)
+
+    def _store(self, state, action, reward, next_state, done, goal):
         idx = self.counter % self.max_mem_size
         self.state_memory[idx] = state
         self.action_memory[idx] = action
@@ -164,23 +191,31 @@ class HindsightExperienceReplayMemory:
         self.goal_memory[idx] = goal
         self.counter += 1
 
+    def compute_reward(self, next_state, goal):
+        return 1.0 if np.allclose(next_state, goal, atol=1e-2) else 0.0
+
     def get_random_experience(self, batch_size):
         max_mem = min(self.counter, self.max_mem_size)
         batch_idx = np.random.choice(max_mem, batch_size, replace=False)
+
+        states = np.concatenate([self.state_memory[batch_idx], self.goal_memory[batch_idx]], axis=1)
+        next_states = np.concatenate([self.next_state_memory[batch_idx], self.goal_memory[batch_idx]], axis=1)
+
         return (
-            self.state_memory[batch_idx],
+            states,
             self.action_memory[batch_idx],
             self.reward_memory[batch_idx],
-            self.next_state_memory[batch_idx],
+            next_states,
             self.terminal_memory[batch_idx],
-            self.goal_memory[batch_idx],
         )
 
 
 class HindsightExperienceReplayMemoryCNN:
-    def __init__(self, memory_size, input_shape, n_actions):
+    def __init__(self, memory_size, input_shape, n_actions, her_k=4):
         self.max_mem_size = memory_size
         self.counter = 0
+        self.her_k = her_k
+
         C, H, W = input_shape
         self.state_memory = np.zeros((memory_size, C, H, W), dtype=np.float32)
         self.next_state_memory = np.zeros((memory_size, C, H, W), dtype=np.float32)
@@ -189,7 +224,32 @@ class HindsightExperienceReplayMemoryCNN:
         self.terminal_memory = np.zeros(memory_size, dtype=bool)
         self.goal_memory = np.zeros((memory_size, C, H, W), dtype=np.float32)
 
+        self.episode_buffer = []
+
     def add_experience(self, state, action, reward, next_state, done, goal):
+        self.episode_buffer.append((state, action, reward, next_state, done, goal))
+
+        if done:
+            self._store_episode_with_her()
+            self.episode_buffer = []
+
+    def _store_episode_with_her(self):
+        episode = self.episode_buffer
+        ep_len = len(episode)
+
+        for t, (state, action, reward, next_state, done, goal) in enumerate(episode):
+            self._store(state, action, reward, next_state, done, goal)
+
+            future_indexes = np.random.choice(np.arange(t, ep_len), size=self.her_k, replace=True)
+            for future_t in future_indexes:
+                _, _, _, future_state, _, _ = episode[future_t]
+
+                new_goal = future_state.copy()
+                new_reward = self.compute_reward(next_state, new_goal)
+
+                self._store(state, action, new_reward, next_state, done, new_goal)
+
+    def _store(self, state, action, reward, next_state, done, goal):
         idx = self.counter % self.max_mem_size
         self.state_memory[idx] = state
         self.action_memory[idx] = action
@@ -198,6 +258,9 @@ class HindsightExperienceReplayMemoryCNN:
         self.terminal_memory[idx] = done
         self.goal_memory[idx] = goal
         self.counter += 1
+
+    def compute_reward(self, next_state, goal):
+        return 1.0 if np.allclose(next_state, goal, atol=1e-2) else 0.0
 
     def get_random_experience(self, batch_size):
         max_mem = min(self.counter, self.max_mem_size)
