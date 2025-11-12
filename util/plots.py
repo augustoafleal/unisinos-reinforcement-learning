@@ -563,3 +563,43 @@ def plot_mc_agent_policy_grid(agent, info, grid_size, filename=None, figsize=(10
     plt.savefig(filename, dpi=300, bbox_inches="tight", facecolor="white")
     print(f"Fixed Monte Carlo policy grid saved: {filename}")
     return position_actions
+
+
+def plot_learning_curve_workers(csv_file, window_size=25, aura_factor=0.5, aura_alpha=0.1, filename=None):
+    os.makedirs("plots", exist_ok=True)
+
+    if filename is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"plots/learning_curve_{timestamp}.png"
+
+    df = pd.read_csv(csv_file)
+
+    required_cols = {"episode", "worker_id", "reward"}
+    if not required_cols.issubset(df.columns):
+        raise ValueError(f"CSV precisa conter as colunas {required_cols}")
+
+    grouped = df.groupby("episode")["reward"].agg(["mean", "std"]).reset_index()
+
+    grouped["mean_smooth"] = grouped["mean"].rolling(window=window_size, min_periods=1).mean()
+    grouped["std_smooth"] = grouped["std"].rolling(window=window_size, min_periods=1).mean()
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(
+        grouped["episode"], grouped["mean_smooth"], color="orange", label="Average reward (per episode)", linewidth=2
+    )
+    plt.fill_between(
+        grouped["episode"],
+        grouped["mean_smooth"] - aura_factor * grouped["std_smooth"],
+        grouped["mean_smooth"] + aura_factor * grouped["std_smooth"],
+        color="orange",
+        alpha=aura_alpha,
+    )
+    plt.xlabel("Episode")
+    plt.ylabel("Average Total Reward (across workers)")
+    plt.title("Learning Curve (averaged over workers)")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close()
+    print(f"Plot saved as '{filename}'")
