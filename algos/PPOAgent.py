@@ -118,8 +118,7 @@ class PPO(nn.Module):
 
         T, N = rewards.shape
 
-        # Adiciona o valor bootstrap (T+1 no eixo do tempo)
-        values = torch.cat([values, last_values.unsqueeze(0)], dim=0)  # (T+1, N)
+        values = torch.cat([values, last_values.unsqueeze(0)], dim=0)
 
         advantages = torch.zeros(T, N, device=device)
         gae = torch.zeros(N, device=device)
