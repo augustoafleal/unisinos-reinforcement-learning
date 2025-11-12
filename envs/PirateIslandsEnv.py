@@ -16,6 +16,7 @@ class PirateIslandsEnv(gym.Env):
         state_encoding="count",
         randomize_each_reset=False,
         seed=None,
+        max_steps=250,
     ):
         super().__init__()
         self.render_mode = render_mode
@@ -24,7 +25,8 @@ class PirateIslandsEnv(gym.Env):
         self.state_encoding = state_encoding
         self.map_name = map_name
         self.randomize_each_reset = randomize_each_reset
-
+        self.max_steps = max_steps
+        self.current_step = 0
         self.np_random = np.random.default_rng(seed)
 
         self.map_description = self.get_map(map_name)
@@ -243,6 +245,7 @@ class PirateIslandsEnv(gym.Env):
 
         self.agent_pos = list(self.start)
         self.visited = {i: False for i in range(len(self.islands))}
+        self.current_step = 0
 
         if hasattr(self, "render_mode") and self.render_mode in ["human_tilemap", "rgb_array_tilemap"]:
             self._render_tilemap()
@@ -258,6 +261,7 @@ class PirateIslandsEnv(gym.Env):
         return self.encode_state(), info
 
     def step(self, action):
+        self.current_step += 1
         prev_pos = tuple(self.agent_pos)
         if self.is_blowing_in_the_wind and np.random.rand() < self.wind_prob:
             # print(f"Wind is blowing!")
@@ -290,6 +294,9 @@ class PirateIslandsEnv(gym.Env):
             else:
                 reward -= 1
                 terminated = True
+
+        if self.current_step >= self.max_steps:
+            truncated = True
 
         visited_tuple = tuple(int(v) for v in self.visited.values())
         info = {
@@ -558,59 +565,6 @@ class PirateIslandsEnv(gym.Env):
             return ["".join(row) for row in grid]
 
         raise ValueError(f"Unknown map name: {name}")
-
-    """
-    def encode_goal_cnn(self):
-
-        C = 5
-        H = W = self.grid_size
-        tensor = np.zeros((C, H, W), dtype=np.float32)
-
-        # agente no tesouro
-        tx, ty = self.treasure
-        tensor[0, ty, tx] = 1.0
-
-        # todas as ilhas visitadas
-        for ix, iy in self.islands:
-            tensor[2, iy, ix] = 1.0
-
-        # inimigos
-        for ex, ey in self.enemies:
-            tensor[3, ey, ex] = 1.0
-
-        # tesouro
-        tensor[4, ty, tx] = 1.0
-
-        return tensor
-
-    def encode_state_cnn(self):
-
-        C = 5
-        H = W = self.grid_size
-        tensor = np.zeros((C, H, W), dtype=np.float32)
-
-        # agente
-        ax, ay = self.agent_pos
-        tensor[0, ay, ax] = 1.0
-
-        # ilhas
-        for idx, (ix, iy) in enumerate(self.islands):
-            if self.visited[idx]:
-                tensor[2, iy, ix] = 1.0
-            else:
-                tensor[1, iy, ix] = 1.0
-
-        # inimigos
-        for ex, ey in self.enemies:
-            tensor[3, ey, ex] = 1.0
-
-        # tesouro
-        tx, ty = self.treasure
-        tensor[4, ty, tx] = 1.0
-
-        return tensor
-
-    """
 
     def encode_goal_cnn(self):
         H = W = self.grid_size

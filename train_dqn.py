@@ -21,11 +21,11 @@ config_list = {
     # id: [map_name, wind, max_steps, gamma, epsilon, dec_epsilon, learning_rate, description]
     # 1: ["random_12x12", False, 200, 0.95, 0.1, 0.0, 0.0007, "γ=0.95 | ε fixo | lr=0.0007"],
     # 2: ["random_12x12", False, 200, 0.95, 0.1, 0.0, 0.001, "γ=0.95 | ε fixo | lr=0.001"],
-    3: ["random_12x12", False, 200, 0.95, 1.0, 1e-5, 0.0007, "γ=0.95 | ε decaindo | lr=0.0007"],
+    # 3: ["random_12x12", False, 200, 0.95, 1.0, 1e-5, 0.0007, "γ=0.95 | ε decaindo | lr=0.0007"],
     # 4: ["random_12x12", False, 200, 0.95, 1.0, 1e-5, 0.001, "γ=0.95 | ε decaindo | lr=0.001"],
     # 5: ["random_12x12", False, 200, 0.99, 0.1, 0.0, 0.0007, "γ=0.99 | ε fixo | lr=0.0007"],
     # 6: ["random_12x12", False, 200, 0.99, 0.1, 0.0, 0.001, "γ=0.99 | ε fixo | lr=0.001"],
-    # 7: ["random_12x12", False, 200, 0.99, 1.0, 1e-5, 0.0007, "γ=0.99 | ε decaindo | lr=0.0007"],
+    7: ["random_12x12", False, 200, 0.99, 1.0, 1e-5, 0.0007, "γ=0.99 | ε decaindo | lr=0.0007"],
     # 8: ["random_12x12", False, 200, 0.99, 1.0, 1e-5, 0.001, "γ=0.99 | ε decaindo | lr=0.001"],
 }
 
@@ -75,7 +75,7 @@ for cfg_id, cfg in config_list.items():
 
     logger = Logger(filename=f"logs/episodes_logs_dqn_{map_name}_{cfg_id}.csv")
 
-    num_episodes = 1000
+    num_episodes = 10000
     max_steps_per_episode = max_steps
 
     for ep in range(num_episodes):
