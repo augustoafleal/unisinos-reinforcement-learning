@@ -29,7 +29,6 @@ for map_name in map_sizes:
     done = False
 
     while not done:
-        # ação aleatória só para gerar o vídeo
         action = env.action_space.sample()
         obs, reward, terminated, truncated, info = env.step(action)
 
@@ -37,7 +36,7 @@ for map_name in map_sizes:
         recorder.capture(frame)
 
         done = terminated or truncated
-        time.sleep(0.1)  # desacelera a execução para visualização
+        time.sleep(0.1)
 
     recorder.save()
     pygame.quit()

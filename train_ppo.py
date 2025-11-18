@@ -21,7 +21,7 @@ state_encoding = "cnn"
 # map, wind, steps, gamma, epsilon, dec_epsilon, epsilon_min, lr, ent_coef, batch_size, use_epsilon, desc
 config_list = {
     1: [
-        "random_12x12",
+        "random_16x16",
         True,
         128,
         0.99,
@@ -36,7 +36,7 @@ config_list = {
     ],
     2: [
         "random_12x12",
-        True,
+        False,
         256,
         0.98,
         0.00,
@@ -215,7 +215,7 @@ for cfg_id, cfg in config_list.items():
     logger = Logger(filename=f"logs/ppo_updates_{map_name}_{cfg_id}.csv")
     worker_logger = WorkerLogger(filename=f"logs/worker_logs_ppo_{map_name}_{cfg_id}.csv")
 
-    max_episodes = 1  # 0_000
+    max_episodes = 10_000
     max_steps_per_update = max_steps
     start = datetime.now()
     finished_rewards = np.zeros(n_envs, dtype=np.float32)
@@ -307,20 +307,21 @@ for cfg_id, cfg in config_list.items():
         mean_reward = float(np.mean(finished_rewards[finished_rewards != 0])) if np.any(finished_rewards != 0) else 0.0
         epsilon = max(epsilon_min, epsilon - dec_epsilon)
 
-        print("=" * 100)
-        print(
-            f"PPO Update {update}| Episodes: {episode_counts[1]:.2f} | Elapsed Time: {str(elapsed_time).split('.')[0]}"
-        )
-        print(f"Mean episodic reward (finished envs): {mean_reward:.2f}")
-        formatted_rewards = [f"{r:.3f}" for r in finished_rewards]
-        print(f"Completed episode rewards per thread: {formatted_rewards}")
-        print(f"Epsilon: {epsilon:.2f}")
-        print(f"Entropy Coef: {ppo.ent_coef:.2f}")
-        print(
-            f"ActorLoss: {metrics['actor_loss']:.4f} | "
-            f"CriticLoss: {metrics['critic_loss']:.4f} | "
-            f"Entropy: {metrics['entropy']:.4f}"
-        )
+        if update % 10 == 0:
+            print("=" * 100)
+            print(
+                f"PPO Update {update}| Episodes: {episode_counts[1]:.2f} | Elapsed Time: {str(elapsed_time).split('.')[0]}"
+            )
+            print(f"Mean episodic reward (finished envs): {mean_reward:.2f}")
+            formatted_rewards = [f"{r:.3f}" for r in finished_rewards]
+            print(f"Completed episode rewards per thread: {formatted_rewards}")
+            print(f"Epsilon: {epsilon:.2f}")
+            print(f"Entropy Coef: {ppo.ent_coef:.2f}")
+            print(
+                f"ActorLoss: {metrics['actor_loss']:.4f} | "
+                f"CriticLoss: {metrics['critic_loss']:.4f} | "
+                f"Entropy: {metrics['entropy']:.4f}"
+            )
 
         if np.all(episode_counts >= max_episodes):
             venv.close()
